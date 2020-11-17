@@ -1,0 +1,114 @@
+# importing libraries
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+from sklearn.preprocessing import StandardScaler
+
+# read train and test files
+df_train=pd.read_csv("train.csv")
+df_test=pd.read_csv("test.csv")
+
+# assigning last column as target column
+y_train=df_train.iloc[:,-1].values
+df_train.drop(["SalePrice"],axis=1,inplace=True)
+
+# merging/concatenating train and test files
+df=pd.concat([df_train,df_test])
+
+# getting the entire dataset information
+df.info()
+
+# analysing the number of null values
+df.isnull().sum()
+
+# dropping the features/columns which has more than half null values
+missing=df.isnull().sum()/len(df)
+miss_features=missing.loc[missing>0.5].index
+df.drop(miss_features,inplace=True,axis=1)
+
+df_train.corr()
+
+# dropping the features which are not required for calculating the Sale Price
+df.drop(["Id","YrSold","MoSold","MiscVal","PoolArea","ScreenPorch","3SsnPorch",
+         "EnclosedPorch","KitchenAbvGr","BedroomAbvGr", "HalfBath","BsmtFullBath",
+         "BsmtHalfBath","LowQualFinSF","BsmtUnfSF","BsmtFinSF2","MSSubClass","OverallCond",
+         "LotArea"],inplace=True,axis=1)
+         
+# filling the null values of the remaining columns         
+for bsmt in ["BsmtQual","BsmtCond","BsmtExposure","BsmtFinType1","BsmtFinType2"]:
+    df[bsmt].fillna("No",inplace=True)
+    
+df["FireplaceQu"].fillna("No",inplace=True)
+for gar0 in ('GarageType', 'GarageFinish', 'GarageQual',"GarageYrBlt","GarageCond"):
+    df[gar0].fillna('No',inplace=True)
+    
+for gar1 in ('GarageCars', 'GarageArea'):
+    df[gar1].fillna(0,inplace=True)
+    
+for ea in ("LotFrontage","MasVnrArea","TotalBsmtSF","BsmtFinSF1"):
+    df[ea].fillna(df[ea].mean(),inplace=True)
+    
+for _ in ("MasVnrType","MSZoning","Utilities","Exterior1st","Exterior2nd","Functional","KitchenQual","SaleType","Electrical"):
+    df[_].fillna(df[_].mode()[0],inplace=True)
+    
+# removing the dummies which are repeated
+df=pd.get_dummies(df,columns=["MSZoning","Street","LotShape","LandContour","Utilities",
+                              "LotConfig","LandSlope","Neighborhood","Condition1","Condition2",
+                              "BldgType","HouseStyle","RoofStyle","RoofMatl","Exterior1st","Exterior2nd",
+                              "MasVnrType","ExterQual","ExterCond","Foundation","BsmtQual","BsmtCond",
+                              "BsmtExposure","BsmtFinType1","BsmtFinType2","Heating","HeatingQC","CentralAir",
+                              "Electrical","KitchenQual","Functional","FireplaceQu","GarageType","GarageYrBlt",
+                              "GarageFinish","GarageQual","GarageCond","PavedDrive","SaleType","SaleCondition"],
+                  prefix=["MSZoning","Street","LotShape","LandContour","Utilities","LotConfig","LandSlope",
+                          "Neighborhood","Condition1","Condition2","BldgType","HouseStyle","RoofStyle","RoofMatl",
+                          "Exterior1st","Exterior2nd","MasVnrType","ExterQual","ExterCond","Foundation","BsmtQual",
+                          "BsmtCond","BsmtExposure","BsmtFinType1","BsmtFinType2","Heating","HeatingQC","CentralAir",
+                          "Electrical","KitchenQual","Functional","FireplaceQu","GarageType","GarageYrBlt","GarageFinish",
+                          "GarageQual","GarageCond","PavedDrive","SaleType","SaleCondition"],drop_first=True)
+
+
+X_train=df.iloc[:1460,:].values
+X_test=df.iloc[1460:,:].values
+
+sc_X=StandardScaler()
+X_train=sc_X.fit_transform(X_train)
+m,n=X_train.shape[0],X_train.shape[1]
+X_train = np.append(np.ones((m,1)),X_train,axis=1)
+theta=np.zeros((n+1,1))
+
+def computeCost(X,y,theta):
+    m=len(y)
+    predictions=X.dot(theta)
+    square_err=(predictions - y)**2
+    
+    return 1/(2*m) * np.sum(square_err)
+
+def gradientDescent(X,y,theta,alpha,num_iters):
+    m=len(y)
+    J_history=[]
+    
+    for i in range(num_iters):
+        predictions = X.dot(theta)
+        error = np.dot(X.transpose(),(predictions -y))
+        descent=alpha * 1/m * error
+        theta-=descent
+        J_history.append(computeCost(X,y,theta))
+    
+    return theta, J_history
+
+theta, J_history = gradientDescent(X_train,y_train.reshape(m,1),theta,0.01,400)
+
+
+plt.plot(J_history)
+plt.xlabel("Iteration")
+plt.ylabel("$J(\Theta)$")
+plt.title("Cost function using Gradient Descent")
+
+def predict(x,theta):
+    predictions= np.dot(x,theta)
+    
+    return predictions
+    
+X_test= sc_X.fit_transform(X_test)
+X_test=np.append(np.ones((X_test.shape[0],1)),X_test,axis=1)
+predict=predict(X_test,theta)
